@@ -4,6 +4,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const User = require("./models/user");
 const bcrypt = require("bcrypt");
+const session = require("express-session");
 
 mongoose
   .connect("mongodb://localhost:27017/authDEMO", {
@@ -22,6 +23,9 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  session({ secret: "notagoodsecret", resave: false, saveUninitialized: false })
+);
 
 app.get("/", (req, res) => {
   res.send("This is home page");
@@ -39,6 +43,7 @@ app.post("/register", async (req, res) => {
     password: hash,
   });
   await user.save();
+  req.session.user_id = user._id;
   res.redirect("/");
 });
 
@@ -53,15 +58,28 @@ app.post("/login", async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
 
-    if (validPassword) res.send("Welcome");
-    else res.send("Try Again!");
+    if (validPassword) {
+      req.session.user_id = user._id;
+      res.redirect("/secret");
+    } else {
+      res.redirect("/login");
+    }
   } catch (err) {
     res.send(err);
   }
 });
 
+app.post("/logout", (req, res) => {
+  //   req.session.user_id = null;
+  req.session.destroy();
+  res.redirect("/login");
+});
+
 app.get("/secret", (req, res) => {
-  res.send("You cannot see me unless, you are logged IN!");
+  if (!req.session.user_id) {
+    return res.redirect("/login");
+  }
+  res.render("secret");
 });
 
 app.listen(3000, () => {
